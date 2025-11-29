@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Node/Frontend
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+web/.cache/
+*.log
+
+# Python/Backend
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.pytest_cache/
+
+# Env/Tooling
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+coverage/
+
+openspec/
+db/
+*.md
