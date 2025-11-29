@@ -18,9 +18,19 @@ from fastapi import UploadFile, File, Form
 from fastapi import Request
 from .validators import is_plausible_product_name, fallback_name_from_ocr
 import logging
+import uuid
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def _valid_uuid_or_none(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        uuid.UUID(str(value))
+        return str(value)
+    except Exception:
+        return None
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -134,7 +144,7 @@ async def get_tool(tool_id: str, request: Request) -> ToolInfo:
     # Determine which version to serve:
     # If a user is provided, return the one_pager/media for the version linked to that user.
     # Otherwise, fall back to the latest version.
-    user_id = request.headers.get("x-user-id")
+    user_id = _valid_uuid_or_none(request.headers.get("x-user-id"))
     ver = None
     if user_id:
         ver = await db.fetchrow(
@@ -206,7 +216,7 @@ async def get_tool(tool_id: str, request: Request) -> ToolInfo:
 
 @router.get("/tools")
 async def list_tools(request: Request, limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)) -> list[dict]:
-    user_id = request.headers.get("x-user-id")
+    user_id = _valid_uuid_or_none(request.headers.get("x-user-id"))
     # If user scoped, compute watchlist per user and overview/last_updated from user's linked version if exists
     if user_id:
         try:
@@ -389,9 +399,9 @@ async def link_telegram_start(request: Request) -> LinkStartResponse:
     """
     Generate a short-lived token for the current user to link Telegram via /start <TOKEN>.
     """
-    user_id = request.headers.get("x-user-id")
+    user_id = _valid_uuid_or_none(request.headers.get("x-user-id"))
     if not user_id:
-        raise HTTPException(status_code=401, detail="Missing X-User-Id")
+        raise HTTPException(status_code=401, detail="Missing or invalid X-User-Id")
     import secrets
     from datetime import datetime, timezone, timedelta
     token = secrets.token_urlsafe(16)
@@ -410,9 +420,9 @@ async def link_telegram_status(request: Request) -> LinkStatusResponse:
     """
     Check if the current user is already linked to a Telegram chat_id.
     """
-    user_id = request.headers.get("x-user-id")
+    user_id = _valid_uuid_or_none(request.headers.get("x-user-id"))
     if not user_id:
-        raise HTTPException(status_code=401, detail="Missing X-User-Id")
+        raise HTTPException(status_code=401, detail="Missing or invalid X-User-Id")
     row = await db.fetchrow("SELECT chat_id FROM telegram_users WHERE linked_user_id = $1::uuid", user_id)
     return LinkStatusResponse(linked=bool(row))
 
@@ -426,9 +436,9 @@ async def update_watchlist(tool_id: str, payload: WatchlistRequest, request: Req
     """
     Per-user watchlist toggle. Requires X-User-Id header.
     """
-    user_id = request.headers.get("x-user-id")
+    user_id = _valid_uuid_or_none(request.headers.get("x-user-id"))
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-User-Id")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid X-User-Id")
     if bool(payload.watch):
         # Add to user_watchlist (idempotent via PK)
         try:
