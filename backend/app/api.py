@@ -240,6 +240,18 @@ async def list_tools(request: Request, limit: int = Query(100, ge=1, le=500), of
                             LIMIT 1), t.one_pager->>'last_updated') AS last_updated,
                   (SELECT COUNT(*) FROM tool_updates u WHERE u.tool_id = t.id) AS updates
                 FROM tools t
+                WHERE
+                  EXISTS (
+                    SELECT 1
+                    FROM user_tool_versions uv
+                    JOIN tool_versions tv ON uv.tool_version_id = tv.id
+                    WHERE uv.user_id = $3::uuid AND tv.tool_id = t.id
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM user_watchlist uw
+                    WHERE uw.user_id = $3::uuid AND uw.tool_id = t.id
+                  )
                 ORDER BY t.id DESC
                 LIMIT $1 OFFSET $2
                 """,
@@ -249,23 +261,39 @@ async def list_tools(request: Request, limit: int = Query(100, ge=1, le=500), of
             )
         except Exception as e:
             # Fallback if user_watchlist table not yet migrated
+            # Return only tools linked to this user via versions
             rows = await db.fetch(
                 """
                 SELECT
                   t.id,
                   t.name,
                   t.status,
-                  t.watchlist,
+                  FALSE AS watchlist,
                   t.canonical_url,
-                  COALESCE(t.one_pager->>'overview','') AS overview,
-                  COALESCE(t.one_pager->>'last_updated','') AS last_updated,
+                  COALESCE((SELECT tv.one_pager->>'overview' FROM user_tool_versions uv
+                            JOIN tool_versions tv ON uv.tool_version_id = tv.id
+                            WHERE uv.user_id = $3::uuid AND tv.tool_id = t.id
+                            ORDER BY uv.linked_at DESC NULLS LAST, tv.version_no DESC
+                            LIMIT 1), t.one_pager->>'overview') AS overview,
+                  COALESCE((SELECT tv.one_pager->>'last_updated' FROM user_tool_versions uv
+                            JOIN tool_versions tv ON uv.tool_version_id = tv.id
+                            WHERE uv.user_id = $3::uuid AND tv.tool_id = t.id
+                            ORDER BY uv.linked_at DESC NULLS LAST, tv.version_no DESC
+                            LIMIT 1), t.one_pager->>'last_updated') AS last_updated,
                   (SELECT COUNT(*) FROM tool_updates u WHERE u.tool_id = t.id) AS updates
                 FROM tools t
+                WHERE EXISTS (
+                  SELECT 1
+                  FROM user_tool_versions uv
+                  JOIN tool_versions tv ON uv.tool_version_id = tv.id
+                  WHERE uv.user_id = $3::uuid AND tv.tool_id = t.id
+                )
                 ORDER BY t.id DESC
                 LIMIT $1 OFFSET $2
                 """,
                 limit,
                 offset,
+                user_id,
             )
     else:
         rows = await db.fetch(
