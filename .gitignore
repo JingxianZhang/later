@@ -27,6 +27,6 @@ __pycache__/
 coverage/
 
 openspec/
-db/
-*.md
+#db/
+#*.md
 .cursor/

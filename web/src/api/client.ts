@@ -125,9 +125,15 @@ export async function deleteLatestVersion(
   | { ok: true; tool_deleted: true; tool_id: string }
 >{
   const url = new URL(`${BASE}/tools/${toolId}/versions/latest`);
-  if (opts?.userId) url.searchParams.set('user_id', opts.userId);
+  // Use header for user scoping (consistent with other endpoints)
+  const userId = localStorage.getItem('USER_ID') || undefined;
+  // Backward-compat: if a valid UUID is explicitly provided via opts, include as query param
+  if (opts?.userId && /^[0-9a-fA-F-]{32,36}$/.test(opts.userId)) {
+    url.searchParams.set('user_id', opts.userId);
+  }
   const res = await fetch(url.toString(), {
     method: 'DELETE',
+    headers: { ...(userId ? { 'X-User-Id': userId } : {}) },
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

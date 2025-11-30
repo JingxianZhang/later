@@ -554,7 +554,7 @@ async def refresh_watchlist(limit: int = Query(100, ge=1, le=1000)) -> RefreshRe
 
 
 @router.delete("/tools/{tool_id}/versions/latest")
-async def delete_latest_tool_version(tool_id: str, user_id: str | None = Query(default=None)) -> dict:
+async def delete_latest_tool_version(tool_id: str, request: Request, user_id: str | None = Query(default=None)) -> dict:
     """
     Delete semantics:
     - If user_id is provided:
@@ -565,40 +565,78 @@ async def delete_latest_tool_version(tool_id: str, user_id: str | None = Query(d
         - Delete the latest tool_version and cascade related version-scoped data.
           Promote the next highest version to latest and sync tools.one_pager; or clear if none.
     """
+    # Prefer header, then fallback to query param.
+    # Policy: invalid query param => 400; invalid header => ignore (treat as None) for leniency.
+    header_raw = request.headers.get("x-user-id")
+    header_uuid = _valid_uuid_or_none(header_raw) if header_raw else None
+    query_uuid = _valid_uuid_or_none(user_id) if user_id else None
+    if user_id is not None and query_uuid is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing or invalid user_id")
+    validated_user_id = header_uuid or query_uuid
+
     # Acquire a connection to perform a small transactional sequence
     if db.pool is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database not connected")
     conn = await db.pool.acquire()
     try:
         async with conn.transaction():
-            if user_id:
-                # Count distinct other users referencing this tool
-                other_users = await conn.fetchrow(
+            if validated_user_id:
+                # Determine latest version for this tool
+                latest = await conn.fetchrow(
+                    "SELECT id, version_no FROM tool_versions WHERE tool_id = $1::uuid AND is_latest = TRUE",
+                    tool_id,
+                )
+                if not latest:
+                    raise HTTPException(status_code=404, detail="No latest version found for tool")
+                latest_id = latest["id"]
+                # Check if other users are linked to this latest version
+                other_users_latest = await conn.fetchrow(
                     """
                     SELECT COUNT(DISTINCT uv.user_id) AS c
                     FROM user_tool_versions uv
-                    JOIN tool_versions tv ON uv.tool_version_id = tv.id
-                    WHERE tv.tool_id = $1::uuid AND (uv.user_id IS DISTINCT FROM $2::uuid)
+                    WHERE uv.tool_version_id = $1::uuid
+                      AND (uv.user_id IS DISTINCT FROM $2::uuid)
                     """,
-                    tool_id,
-                    user_id,
+                    latest_id,
+                    validated_user_id,
                 )
-                other_count = int(other_users["c"]) if other_users else 0
-                if other_count > 0:
-                    # Unlink this user from all versions of this tool; keep shared data intact
+                other_latest_count = int(other_users_latest["c"]) if other_users_latest else 0
+                if other_latest_count > 0:
+                    # Only unlink this user from this latest version; keep version and other users intact
                     await conn.execute(
-                        """
-                        DELETE FROM user_tool_versions
-                        WHERE user_id = $1::uuid
-                          AND tool_version_id IN (SELECT id FROM tool_versions WHERE tool_id = $2::uuid)
-                        """,
-                        user_id,
+                        "DELETE FROM user_tool_versions WHERE user_id = $1::uuid AND tool_version_id = $2::uuid",
+                        validated_user_id,
+                        latest_id,
+                    )
+                    return {"ok": True, "unlinked_only": True, "tool_id": tool_id, "version_id": str(latest_id)}
+                # No other users reference this latest version; delete the version and cascade version-scoped data
+                await conn.execute("DELETE FROM tool_versions WHERE id = $1::uuid", latest_id)
+                # Pick new latest (highest version_no) if exists and sync tools.one_pager
+                new_latest = await conn.fetchrow(
+                    "SELECT id, one_pager FROM tool_versions WHERE tool_id = $1::uuid ORDER BY version_no DESC LIMIT 1",
+                    tool_id,
+                )
+                new_latest_id: str | None = None
+                if new_latest:
+                    new_latest_id = str(new_latest["id"])
+                    await conn.execute("UPDATE tool_versions SET is_latest = TRUE WHERE id = $1::uuid", new_latest["id"])
+                    await conn.execute(
+                        "UPDATE tools SET one_pager = $1 WHERE id = $2::uuid",
+                        new_latest["one_pager"],
                         tool_id,
                     )
-                    return {"ok": True, "unlinked_only": True, "tool_id": tool_id}
-                # No other users reference this tool; safe to delete entire tool (cascades)
-                await conn.execute("DELETE FROM tools WHERE id = $1::uuid", tool_id)
-                return {"ok": True, "tool_deleted": True, "tool_id": tool_id}
+                else:
+                    # No versions remain; clear the tool-level one_pager
+                    await conn.execute("UPDATE tools SET one_pager = '{}'::jsonb WHERE id = $1::uuid", tool_id)
+                # If no versions remain at all after deletion, and this was a user-scoped delete, remove the tool entirely.
+                remaining = await conn.fetchrow(
+                    "SELECT COUNT(*) AS c FROM tool_versions WHERE tool_id = $1::uuid",
+                    tool_id,
+                )
+                if int(remaining["c"]) == 0:
+                    await conn.execute("DELETE FROM tools WHERE id = $1::uuid", tool_id)
+                    return {"ok": True, "tool_deleted": True, "tool_id": tool_id}
+                return {"ok": True, "deleted_version_id": str(latest_id), "new_latest_version_id": new_latest_version_id}
 
             latest = await conn.fetchrow(
                 "SELECT id, version_no FROM tool_versions WHERE tool_id = $1::uuid AND is_latest = TRUE",

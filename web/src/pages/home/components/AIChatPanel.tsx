@@ -36,16 +36,7 @@ export default function AIChatPanel({ isOpen, selectedTool, onClose }: AIChatPan
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    if (selectedTool) {
-      setMessages([{
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: `Hi! I can help you learn more about ${selectedTool.name}. What would you like to know?`,
-        timestamp: new Date(),
-      }]);
-    }
-  }, [selectedTool]);
+  // Do not reset messages when selectedTool changes; keep ongoing conversation persistent.
 
   const detectCrossToolIntent = (text: string): boolean => {
     const pattern = /(other tools?|alternatives?|compare|vs\b|versus\b)/i;
@@ -113,13 +104,13 @@ export default function AIChatPanel({ isOpen, selectedTool, onClose }: AIChatPan
       <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-rose-200 rounded-full flex items-center justify-center">
               <i className="ri-sparkling-2-fill text-xl text-white"></i>
             </div>
             <div>
               <h3 className="text-lg font-normal text-gray-800">AI Assistant</h3>
               <p className="text-xs text-gray-500 font-light">
-                {selectedTool ? `About ${selectedTool.name}` : 'Ask about any tool'}
+                {selectedTool ? `Asking about ${selectedTool.name}` : 'Global chat • Ask about any tool'}
               </p>
             </div>
           </div>
@@ -142,7 +133,7 @@ export default function AIChatPanel({ isOpen, selectedTool, onClose }: AIChatPan
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                 message.role === 'user'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-sky-500 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-800'
               }`}
             >
@@ -224,7 +215,7 @@ export default function AIChatPanel({ isOpen, selectedTool, onClose }: AIChatPan
           <button
             onClick={handleSend}
             disabled={!inputValue.trim()}
-            className="w-11 h-11 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors cursor-pointer"
+            className="w-11 h-11 bg-gradient-to-br from-sky-400 to-rose-200 hover:from-sky-500 hover:to-rose-300 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors cursor-pointer shadow"
           >
             <i className="ri-send-plane-fill text-lg"></i>
           </button>

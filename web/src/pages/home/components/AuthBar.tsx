@@ -50,6 +50,16 @@ export default function AuthBar() {
 
   const handleConnectTelegram = async () => {
     try {
+      // Ensure we have a user before starting Telegram flow
+      if (!userId) {
+        if (supabase) {
+          await supabase.auth.signInWithOAuth({ provider: 'github' });
+          return; // OAuth will redirect; continue after sign-in
+        } else {
+          const id = ensureAnonymousUserId();
+          setUserId(id);
+        }
+      }
       const botUsername = import.meta.env.VITE_TG_BOT_USERNAME as string | undefined;
       if (botUsername) {
         // If already linked, open plain bot URL (no /start); else generate token and open deep link
@@ -67,7 +77,7 @@ export default function AuthBar() {
       const res = await startTelegramLink();
       setLinkToken(res.token);
     } catch (e) {
-      alert('Failed to start Telegram link. Please sign in first.');
+      alert('Failed to start Telegram link. Please try again after signing in.');
     }
   };
 

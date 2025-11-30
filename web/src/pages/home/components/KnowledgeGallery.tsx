@@ -1,7 +1,6 @@
 
 import ToolCard from './ToolCard';
 import type { Tool } from '../types';
-import { mockTools } from '../../../mocks/tools';
 import { useState, useEffect } from 'react';
 
 interface KnowledgeGalleryProps {
@@ -12,12 +11,12 @@ interface KnowledgeGalleryProps {
 export default function KnowledgeGallery({ onToolSelect, tools }: KnowledgeGalleryProps) {
   const [groupMode, setGroupMode] = useState<'category' | 'tag'>('category');
   const [perRow, setPerRow] = useState<number>(4);
-  const [data, setData] = useState<Tool[]>(tools && tools.length ? tools : mockTools);
+  const [data, setData] = useState<Tool[]>(tools && tools.length ? tools : []);
   useEffect(() => {
     if (tools && tools.length) {
       setData(tools);
     } else {
-      setData(mockTools);
+      setData([]);
     }
   }, [tools]);
   const cardHeightPx = 260;
@@ -184,12 +183,12 @@ export default function KnowledgeGallery({ onToolSelect, tools }: KnowledgeGalle
                 </div>
                 <div className="text-left">
                   <h3 className="font-semibold text-gray-800" id="section-all-tools">{folders[0]?.name ?? 'All Tools'}</h3>
-                  <p className="text-sm text-gray-500">{(folders[0]?.tools ?? mockTools).length} tools</p>
+                    <p className="text-sm text-gray-500">{folders[0]?.tools?.length ?? 0} tools</p>
                 </div>
               </div>
             </div>
             <div className="px-6 pb-6 pt-2">
-              <div className="relative" style={{ minHeight: `${getContainerMinHeight((folders[0]?.tools ?? mockTools).length)}px` }}>
+              <div className="relative" style={{ minHeight: `${getContainerMinHeight(folders[0]?.tools?.length ?? 0)}px` }}>
                 {(folders[0]?.tools ?? dataset).map((tool, index) => (
                   <ToolCard
                     key={tool.id}
