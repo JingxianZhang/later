@@ -19,3 +19,4 @@ async def verify_claims(claims: List[str]) -> List[Tuple[str, bool, str]]:
             results.append((c, False, ""))
     return results[:5]
 
+

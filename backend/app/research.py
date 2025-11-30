@@ -10,7 +10,7 @@ SYSTEM_PROMPT = (
     "- product_name: string (short, canonical product or company name)\n"
     "- overview: string\n"
     "- features: array of 6-10 short, benefit-oriented bullets (avoid fluff)\n"
-    "- pricing: object mapping plan/tier to concise facts (if no pricing found, return {})\n"
+    "- pricing: object mapping plan/tier to a concise price string (if no pricing found, return {})\n"
     "- tech_stack: array of relevant technologies mentioned\n"
     "- competitors: array of short names (include only if clearly implied by sources)\n"
     "- integrations: array of integration partners/tools if clearly mentioned; else []\n"
@@ -22,7 +22,14 @@ SYSTEM_PROMPT = (
     "- Use only verifiable facts present in the text; prefer concrete details (caps, integrations, pricing signals) over generic marketing.\n"
     "- Do not hallucinate.\n"
     "- If a section is not supported by evidence, return an empty array/object for that section (do not invent).\n"
-    "- Keep content succinct but informative for an evaluator."
+    "- Keep content succinct but informative for an evaluator.\n"
+    "Pricing normalization rules:\n"
+    "- For each plan/tier, return a SINGLE short string suitable for UI display, e.g., 'Free', '$19/mo', '$99/user/mo', 'Custom', '$199/yr'.\n"
+    "- Normalize units and wording: use '/mo' for monthly, '/yr' for yearly, '/user' or '/seat' for per-user pricing. Prefer '$' currency symbol when USD is implied; include currency code if not USD (e.g., '€29/mo').\n"
+    "- If key qualifiers are essential (e.g., 'billed annually', '7‑day trial', 'includes X credits'), append AFTER an em dash: ' — billed annually' or ' — includes 10k credits'. Keep the qualifier ≤ 12 words.\n"
+    "- Do NOT output paragraphs or long sentences in pricing. Avoid generic marketing language; include only factual pricing terms.\n"
+    "- If pricing is not public or only 'contact sales', return 'Custom'.\n"
+    "- If uncertain or no pricing is present, return {} for the entire pricing object."
 )
 
 
@@ -83,8 +90,13 @@ async def resolve_pricing_via_llm(name: str, snippets: List[str]) -> Dict[str, s
         return {}
     client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
     SYSTEM = (
-        "Extract pricing from provided text. Return JSON object mapping plan/tier names to concise price/terms. "
-        "If no pricing is present, return {}. Do not hallucinate."
+        "Extract pricing from provided text. Return a JSON object mapping plan/tier names to a SINGLE concise price string per tier.\n"
+        "Formatting rules:\n"
+        "- Use compact, normalized forms like: 'Free', '$19/mo', '$99/user/mo', '$199/yr', 'Custom'.\n"
+        "- Normalize wording: '/mo' for monthly, '/yr' for yearly, '/user' or '/seat' for per-user. Prefer '$' when USD; otherwise include currency symbol/code.\n"
+        "- If a short qualifier is essential (e.g., 'billed annually', 'includes 10k credits'), append AFTER an em dash: ' — billed annually'. Max 12 words.\n"
+        "- Do NOT output paragraphs; avoid generic marketing. Include only factual pricing terms.\n"
+        "- If no pricing is present, return {}. Do not hallucinate."
     )
     joined = "\n\n".join(snippets)[:12000]
     completion = await client.chat.completions.create(

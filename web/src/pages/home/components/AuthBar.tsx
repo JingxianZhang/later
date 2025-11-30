@@ -23,7 +23,7 @@ export default function AuthBar() {
           setUserIdLocal(uid);
         }
         // subscribe to future auth changes
-        supabase.auth.onAuthStateChange((_event, session) => {
+        supabase.auth.onAuthStateChange((_event: any, session: any) => {
           const u = session?.user?.id || null;
           setUserId(u);
           setUserIdLocal(u);
@@ -82,7 +82,6 @@ export default function AuthBar() {
   };
 
   const botUsername = import.meta.env.VITE_TG_BOT_USERNAME as string | undefined;
-  const deepLinkHttp = null; // we no longer show a persistent button; only fallback shows code
   const handleCopyCode = async () => {
     if (!linkToken) return;
     try {

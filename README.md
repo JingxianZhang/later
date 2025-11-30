@@ -36,3 +36,4 @@ uvicorn app.main:app --reload --port 8000
 - Specs: see `openspec/changes/add-mvp-foundation/`
 - UI: minimal web stub can call the API; a full UI will arrive post-MVP polish.
 
+

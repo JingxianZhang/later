@@ -51,3 +51,4 @@ CREATE TABLE IF NOT EXISTS media_items (
 CREATE INDEX IF NOT EXISTS media_items_platform_idx ON media_items(platform);
 
 
+

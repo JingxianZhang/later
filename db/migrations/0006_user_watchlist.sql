@@ -9,3 +9,4 @@ CREATE TABLE IF NOT EXISTS user_watchlist (
 CREATE INDEX IF NOT EXISTS user_watchlist_tool_idx ON user_watchlist(tool_id);
 
 
+

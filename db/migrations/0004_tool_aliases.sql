@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS tool_aliases_value_idx ON tool_aliases(LOWER(alias_va
 CREATE INDEX IF NOT EXISTS tool_aliases_tool_idx ON tool_aliases(tool_id);
 
 
+

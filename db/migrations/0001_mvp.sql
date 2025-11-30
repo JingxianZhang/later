@@ -88,3 +88,4 @@ LANGUAGE SQL STABLE AS $$
     SELECT * FROM c;
 $$;
 
+

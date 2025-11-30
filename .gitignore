@@ -28,5 +28,5 @@ coverage/
 
 openspec/
 #db/
-#*.md
+*.md
 .cursor/

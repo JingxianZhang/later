@@ -12,6 +12,7 @@ export interface Tool {
     pricing: {
       tier: string;
       price: string;
+      details?: string;
       verified: boolean;
     }[];
     techStack: {

@@ -27,3 +27,4 @@ def canonicalize_url(url: str) -> str:
 
     return urlunparse((scheme, netloc, path, "", query, fragment))
 
+

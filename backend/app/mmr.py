@@ -38,3 +38,4 @@ def mmr(
         candidate_set.remove(best_i)
     return selected
 
+
